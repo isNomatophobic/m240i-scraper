@@ -62,7 +62,7 @@ def send_telegram_notification(new_listings):
     
     if not bot_token or not chat_id:
         logging.error("Telegram credentials not found in environment variables")
-        return
+        raise Exception("Telegram credentials not found in environment variables")
 
     message = f"🚗 New BMW 240 Listings Found - {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
     
