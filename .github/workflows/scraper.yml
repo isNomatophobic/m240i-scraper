@@ -8,6 +8,9 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - uses: actions/checkout@v4
@@ -17,24 +20,18 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: List artifacts before download
-        run: |
-          echo "Checking available artifacts..."
-          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-               "https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
-
       - name: Download previous database
-        id: download
-        uses: actions/download-artifact@v4
+        uses: dawidd6/action-download-artifact@v3
         continue-on-error: true
         with:
           name: listings-db
           path: .
-          merge-multiple: true
+          search_artifacts: true
+          if_no_artifact_found: warn
+          workflow_conclusion: success
 
       - name: Check download status
         run: |
-          echo "Download step status: ${{ steps.download.outcome }}"
           echo "Current directory contents:"
           ls -la
           if [ -f "listings.db" ]; then
