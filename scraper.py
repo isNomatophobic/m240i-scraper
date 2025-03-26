@@ -1,66 +1,92 @@
 import os
+import logging
 import sqlite3
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
-import logging
 
-# Set up logging
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('scraper.log'),
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# Load environment variables
-load_dotenv()
-
-# Database setup
 def setup_database():
-    logging.info("Setting up database...")
-    conn = sqlite3.connect('listings.db')
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS listings
-        (id TEXT PRIMARY KEY,
-         title TEXT,
-         price TEXT,
-         url TEXT,
-         image_url TEXT,
-         date_added TIMESTAMP)
-    ''')
-    conn.commit()
-    conn.close()
-    logging.info("Database setup complete")
+    db_path = 'listings.db'
+    logging.info(f"Setting up database at {os.path.abspath(db_path)}")
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS listings
+            (id TEXT PRIMARY KEY,
+             title TEXT,
+             price TEXT,
+             url TEXT,
+             image_url TEXT,
+             date_added TIMESTAMP)
+        ''')
+        conn.commit()
+        conn.close()
+        logging.info("Database setup completed successfully")
+        
+        # Verify the file exists and log its size
+        if os.path.exists(db_path):
+            size = os.path.getsize(db_path)
+            logging.info(f"Database file created successfully. Size: {size} bytes")
+        else:
+            logging.error("Database file was not created!")
+            
+    except Exception as e:
+        logging.error(f"Error setting up database: {str(e)}")
+        raise
 
 def get_existing_listings():
-    if not os.path.exists('listings.db'):
-        logging.info("Database file does not exist, creating new database...")
+    db_path = 'listings.db'
+    if not os.path.exists(db_path):
+        logging.info(f"Database file does not exist at {os.path.abspath(db_path)}")
         setup_database()
         return set()
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute('SELECT id FROM listings')
+        existing_ids = {row[0] for row in c.fetchall()}
+        conn.close()
+        logging.info(f"Found {len(existing_ids)} existing listings in database")
         
-    conn = sqlite3.connect('listings.db')
-    c = conn.cursor()
-    c.execute('SELECT id FROM listings')
-    existing_ids = {row[0] for row in c.fetchall()}
-    conn.close()
-    logging.info(f"Found {len(existing_ids)} existing listings in database")
-    return existing_ids
+        # Log database file info
+        size = os.path.getsize(db_path)
+        logging.info(f"Current database size: {size} bytes")
+        return existing_ids
+        
+    except Exception as e:
+        logging.error(f"Error reading from database: {str(e)}")
+        raise
 
-def save_listing(listing_id, title, price, url):
-    conn = sqlite3.connect('listings.db')
-    c = conn.cursor()
-    c.execute('''
-        INSERT OR IGNORE INTO listings 
-        (id, title, price, url, date_added)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (listing_id, title, price, url, datetime.now()))
-    conn.commit()
-    conn.close()
+def save_listing(listing_id, title, price, url, image_url):
+    try:
+        conn = sqlite3.connect('listings.db')
+        c = conn.cursor()
+        c.execute('''
+            INSERT OR IGNORE INTO listings 
+            (id, title, price, url, image_url, date_added)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (listing_id, title, price, url, image_url, datetime.now()))
+        
+        if c.rowcount > 0:
+            logging.info(f"Successfully saved new listing: {title}")
+        else:
+            logging.debug(f"Listing already exists: {title}")
+            
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Error saving listing: {str(e)}")
+        raise
 
 def send_telegram_notification(new_listings):
     if not new_listings:
@@ -146,7 +172,7 @@ def scrape_listings():
                 url =  listing_link['href']
 
                 # Save to database
-                save_listing(listing_id, title, price, url)
+                save_listing(listing_id, title, price, url, '')
                 
                 # Add to new listings for notification
                 new_listings.append({
@@ -167,8 +193,34 @@ def scrape_listings():
         logging.error(f"Error scraping listings: {str(e)}")
 
 def main():
-    setup_database()
-    scrape_listings()
+    logging.info("Starting scraper...")
+    
+    # Load environment variables
+    load_dotenv()
+    bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    
+    if not bot_token or not chat_id:
+        logging.error("Telegram credentials not found in environment variables")
+        return
+    
+    # Log current working directory and files
+    logging.info(f"Current working directory: {os.getcwd()}")
+    logging.info(f"Files in directory: {os.listdir('.')}")
+    
+    try:
+        scrape_listings()
+        
+        # Log final database state
+        if os.path.exists('listings.db'):
+            size = os.path.getsize('listings.db')
+            logging.info(f"Final database size: {size} bytes")
+        else:
+            logging.error("Database file not found after scraping!")
+            
+    except Exception as e:
+        logging.error(f"Error during scraping: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main() 

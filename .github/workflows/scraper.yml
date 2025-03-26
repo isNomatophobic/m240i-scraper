@@ -19,10 +19,17 @@ jobs:
 
       - name: Download previous database
         uses: actions/download-artifact@v4
-        continue-on-error: true # Continue even if no previous database exists
+        continue-on-error: true
         with:
           name: listings-db
           path: .
+
+      - name: Check workspace
+        run: |
+          echo "Current directory contents:"
+          ls -la
+          echo "Current working directory:"
+          pwd
 
       - name: Install dependencies
         run: |
@@ -37,7 +44,17 @@ jobs:
       - name: Run scraper
         run: python scraper.py
 
+      - name: Verify database
+        run: |
+          echo "Checking if database was created:"
+          ls -la listings.db || echo "Database file not found!"
+          if [ -f listings.db ]; then
+            echo "Database exists with size:"
+            du -h listings.db
+          fi
+
       - name: Upload database for next run
+        if: always() # Try to upload even if previous steps failed
         uses: actions/upload-artifact@v4
         with:
           name: listings-db
