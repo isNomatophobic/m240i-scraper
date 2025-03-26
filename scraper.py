@@ -21,6 +21,7 @@ load_dotenv()
 
 # Database setup
 def setup_database():
+    logging.info("Setting up database...")
     conn = sqlite3.connect('listings.db')
     c = conn.cursor()
     c.execute('''
@@ -29,17 +30,25 @@ def setup_database():
          title TEXT,
          price TEXT,
          url TEXT,
+         image_url TEXT,
          date_added TIMESTAMP)
     ''')
     conn.commit()
     conn.close()
+    logging.info("Database setup complete")
 
 def get_existing_listings():
+    if not os.path.exists('listings.db'):
+        logging.info("Database file does not exist, creating new database...")
+        setup_database()
+        return set()
+        
     conn = sqlite3.connect('listings.db')
     c = conn.cursor()
     c.execute('SELECT id FROM listings')
     existing_ids = {row[0] for row in c.fetchall()}
     conn.close()
+    logging.info(f"Found {len(existing_ids)} existing listings in database")
     return existing_ids
 
 def save_listing(listing_id, title, price, url):
