@@ -17,19 +17,34 @@ jobs:
         with:
           python-version: "3.9"
 
+      - name: List artifacts before download
+        run: |
+          echo "Checking available artifacts..."
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               "https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+
       - name: Download previous database
+        id: download
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: listings-db
           path: .
+          merge-multiple: true
 
-      - name: Check workspace
+      - name: Check download status
         run: |
+          echo "Download step status: ${{ steps.download.outcome }}"
           echo "Current directory contents:"
           ls -la
-          echo "Current working directory:"
-          pwd
+          if [ -f "listings.db" ]; then
+            echo "Database exists with size:"
+            du -h listings.db
+            echo "Database contents:"
+            sqlite3 listings.db "SELECT COUNT(*) FROM listings;"
+          else
+            echo "No database file found after download"
+          fi
 
       - name: Install dependencies
         run: |
@@ -44,19 +59,21 @@ jobs:
       - name: Run scraper
         run: python scraper.py
 
-      - name: Verify database
+      - name: Check database after scraping
         run: |
-          echo "Checking if database was created:"
+          echo "Checking database after scraping:"
           ls -la listings.db || echo "Database file not found!"
           if [ -f listings.db ]; then
             echo "Database exists with size:"
             du -h listings.db
+            echo "Database contents:"
+            sqlite3 listings.db "SELECT COUNT(*) FROM listings;"
           fi
 
       - name: Upload database for next run
-        if: always() # Try to upload even if previous steps failed
         uses: actions/upload-artifact@v4
         with:
           name: listings-db
           path: listings.db
-          retention-days: 1 # Keep only the most recent database
+          retention-days: 1
+          overwrite: true
