@@ -1,9 +1,12 @@
 name: BMW 240 Scraper
 
+# Runs every hour to check for new BMW 240 listings
 on:
   schedule:
-    - cron: "0 * * * *" # Run every hour
-  workflow_dispatch: # Allow manual trigger
+    # At minute 0 of every hour
+    - cron: "0 * * * *"
+  # Manual trigger
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -13,6 +16,12 @@ jobs:
       actions: write
 
     steps:
+      - name: Show schedule info
+        run: |
+          echo "Current time (UTC): $(date -u '+%Y-%m-%d %H:%M:%S')"
+          next_hour=$(date -u -d '1 hour' '+%Y-%m-%d %H:00:00')
+          echo "Next scheduled run (UTC): $next_hour"
+
       - uses: actions/checkout@v4
 
       - name: Set up Python
