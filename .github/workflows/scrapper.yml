@@ -1,0 +1,12 @@
+name: BMW 240 Scraper
+
+on:
+  schedule:
+    - cron: "0 * * * *" # Run every hour
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Test run at $(date)"
